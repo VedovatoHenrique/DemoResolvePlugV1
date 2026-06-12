@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Atualização de Identificação NFSe — PlugNotas</title>
+  <!-- Favicon inline (chevron) para evitar 404 de /favicon.ico -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M14 6 L40 32 L14 58 L24 58 L50 32 L24 6 Z' fill='%232d2a8c'/%3E%3Cpath d='M30 12 L50 32 L30 52 L37 52 L57 32 L37 12 Z' fill='%234db8ec'/%3E%3C/svg%3E" />
+  <!-- Tipografia geométrica arredondada, alinhada à identidade PlugNotas -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ============ CABEÇALHO ============ -->
+  <header class="app-header">
+    <div class="header-brand">
+      <!-- Logo (chevron TecnoSpeed) -->
+      <svg class="brand-logo" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M14 6 L40 32 L14 58 L24 58 L50 32 L24 6 Z" fill="var(--logo-dark)"/>
+        <path d="M30 12 L50 32 L30 52 L37 52 L57 32 L37 12 Z" fill="var(--logo-light)"/>
+        <path d="M22 26 a8 8 0 0 1 8 8 a8 8 0 0 1 -8 -8 Z" fill="var(--logo-light)"/>
+      </svg>
+      <div class="header-titles">
+        <h1>Atualização de Identificação NFSe</h1>
+        <p>Ferramenta interna de suporte — PlugNotas API</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="themeToggle" class="theme-toggle" type="button" title="Alternar tema claro/escuro" aria-label="Alternar tema">
+        <span class="theme-toggle-thumb"></span>
+      </button>
+    </div>
+  </header>
+
+  <main class="app-main">
+
+    <!-- ============ SEÇÃO 1 — CONFIGURAÇÃO DA API ============ -->
+    <section class="card" id="cardApi">
+      <div class="card-header">
+        <span class="card-step">1</span>
+        <h2>Configuração da API</h2>
+      </div>
+      <div class="card-body">
+        <label class="field-label" for="apiKeyInput">API Key (header x-api-key)</label>
+        <div class="input-group">
+          <input type="password" id="apiKeyInput" class="text-input" placeholder="Informe a API Key da conta" autocomplete="off" spellcheck="false" />
+          <button type="button" id="toggleApiKey" class="btn btn-icon" title="Mostrar ou ocultar API Key" aria-label="Mostrar ou ocultar API Key">
+            <svg id="eyeIcon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="rememberApiKey" />
+          <span>Lembrar API Key neste navegador (LocalStorage)</span>
+        </label>
+        <p class="field-hint">A chave é usada apenas em tempo de execução e nunca fica gravada no código-fonte.</p>
+      </div>
+    </section>
+
+    <!-- ============ SEÇÃO 2 — ENTRADA DOS IDS ============ -->
+    <section class="card" id="cardIds">
+      <div class="card-header">
+        <span class="card-step">2</span>
+        <h2>IDs das notas</h2>
+        <span class="badge badge-neutral" id="idCounter">0 IDs válidos</span>
+      </div>
+      <div class="card-body">
+        <label class="field-label" for="idsTextarea">Cole um ID por linha</label>
+        <textarea id="idsTextarea" class="text-area" rows="7" placeholder="66d8f8f5c9b9e10001a12345&#10;66d8f8f5c9b9e10001a12346&#10;66d8f8f5c9b9e10001a12347" spellcheck="false"></textarea>
+        <div class="card-actions">
+          <button type="button" id="formatIdsBtn" class="btn btn-outline">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="18" y2="18"/></svg>
+            Formatar IDs
+          </button>
+          <label class="btn btn-outline" for="fileImport">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Importar CSV / TXT
+          </label>
+          <input type="file" id="fileImport" accept=".csv,.txt" hidden />
+          <button type="button" id="clearIdsBtn" class="btn btn-ghost">Limpar lista</button>
+        </div>
+        <p class="field-hint">Linhas vazias e IDs duplicados são removidos automaticamente.</p>
+      </div>
+    </section>
+
+    <!-- ============ SEÇÃO 3 — CONFIGURAÇÃO DA IDENTIFICAÇÃO ============ -->
+    <section class="card" id="cardIdentificacao">
+      <div class="card-header">
+        <span class="card-step">3</span>
+        <h2>Identificação da nota</h2>
+      </div>
+      <div class="card-body">
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab active" id="tabUnica" role="tab" aria-selected="true" data-mode="unica">Identificação única</button>
+          <button type="button" class="tab" id="tabIndividual" role="tab" aria-selected="false" data-mode="individual">Identificação individual</button>
+        </div>
+
+        <!-- Modo A: um valor para todos os IDs (opcional) -->
+        <div id="panelUnica" class="tab-panel">
+          <label class="field-label" for="identUnicaInput">Valor aplicado a todas as notas <span class="label-optional">(opcional)</span></label>
+          <input type="text" id="identUnicaInput" class="text-input" placeholder="codigoVerificacao (opcional)" spellcheck="false" />
+          <p class="field-hint">Deixe em branco para resolver as notas sem informar identificacaoNota.</p>
+        </div>
+
+        <!-- Modo B: tabela editável, um valor por ID (opcional por linha) -->
+        <div id="panelIndividual" class="tab-panel" hidden>
+          <div class="table-wrapper">
+            <table class="data-table" id="individualTable">
+              <thead>
+                <tr><th>ID da nota</th><th>identificacaoNota <span class="label-optional">(opcional)</span></th></tr>
+              </thead>
+              <tbody id="individualTableBody">
+                <tr class="empty-row"><td colspan="2">Informe os IDs na seção 2 para montar a tabela.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="field-hint">Linhas em branco serão resolvidas sem informar identificacaoNota.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SEÇÃO 4 — CONTROLE DA EXECUÇÃO ============ -->
+    <section class="card" id="cardExecucao">
+      <div class="card-header">
+        <span class="card-step">4</span>
+        <h2>Execução</h2>
+      </div>
+      <div class="card-body">
+        <div class="exec-buttons">
+          <button type="button" id="runBtn" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            Executar atualização
+          </button>
+          <button type="button" id="cancelBtn" class="btn btn-danger" disabled>Cancelar processamento</button>
+        </div>
+
+        <div class="progress-track" aria-hidden="true">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat"><span class="stat-value" id="statTotal">0</span><span class="stat-label">Total</span></div>
+          <div class="stat"><span class="stat-value" id="statDone">0</span><span class="stat-label">Processadas</span></div>
+          <div class="stat"><span class="stat-value" id="statPending">0</span><span class="stat-label">Pendentes</span></div>
+          <div class="stat stat-success"><span class="stat-value" id="statSuccess">0</span><span class="stat-label">Sucessos</span></div>
+          <div class="stat stat-error"><span class="stat-value" id="statError">0</span><span class="stat-label">Erros</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TABELA DE RESULTADOS ============ -->
+    <section class="card" id="cardResultados" hidden>
+      <div class="card-header">
+        <span class="card-step">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </span>
+        <h2>Resultados</h2>
+        <button type="button" id="exportCsvBtn" class="btn btn-outline btn-sm" disabled>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportar CSV
+        </button>
+      </div>
+      <div class="card-body">
+        <div class="table-wrapper">
+          <table class="data-table" id="resultsTable">
+            <thead>
+              <tr>
+                <th>ID nota</th>
+                <th>Identificação enviada</th>
+                <th>Status HTTP</th>
+                <th>Resultado</th>
+                <th>Mensagem API</th>
+                <th>Tempo</th>
+              </tr>
+            </thead>
+            <tbody id="resultsTableBody"></tbody>
+          </table>
+        </div>
+
+        <!-- Resumo final -->
+        <div class="summary" id="summaryBox" hidden>
+          <h3>Resumo da operação</h3>
+          <div class="summary-grid">
+            <div><strong id="sumTotal">0</strong><span>IDs processados</span></div>
+            <div class="ok"><strong id="sumSuccess">0</strong><span>Sucessos</span></div>
+            <div class="err"><strong id="sumError">0</strong><span>Falhas</span></div>
+            <div><strong id="sumRate">0%</strong><span>Taxa de sucesso</span></div>
+            <div><strong id="sumTime">0s</strong><span>Tempo total</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ LOGS DA EXECUÇÃO ============ -->
+    <section class="card" id="cardLogs">
+      <details id="logsDetails">
+        <summary class="logs-summary">
+          <span class="card-step">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          </span>
+          <h2>Logs da execução</h2>
+          <span class="badge badge-neutral" id="logCounter">0 registros</span>
+        </summary>
+        <div class="card-body">
+          <div class="logs-actions">
+            <button type="button" id="exportLogsBtn" class="btn btn-outline btn-sm">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Exportar logs (TXT)
+            </button>
+            <button type="button" id="clearLogsBtn" class="btn btn-ghost btn-sm">Limpar logs</button>
+          </div>
+          <pre class="logs-panel" id="logsPanel" aria-live="polite"></pre>
+        </div>
+      </details>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">Ferramenta interna — equipe de suporte PlugNotas · TecnoSpeed</footer>
+
+  <!-- Container das mensagens toast -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <!-- Modal de confirmação genérico -->
+  <div class="modal-backdrop" id="confirmModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <h3 id="confirmTitle">Confirmar ação</h3>
+      <p id="confirmMessage">Tem certeza?</p>
+      <div class="modal-actions">
+        <button type="button" id="confirmCancel" class="btn btn-ghost">Cancelar</button>
+        <button type="button" id="confirmOk" class="btn btn-primary">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
