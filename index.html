@@ -145,7 +145,7 @@
           </div>
           <div class="config-field">
             <label class="field-label" for="retryIntervalInput">Intervalo entre tentativas (ms)</label>
-            <input type="number" id="retryIntervalInput" class="text-input" min="0" step="100" value="1000" />
+            <input type="number" id="retryIntervalInput" class="text-input" min="0" step="100" value="5000" />
           </div>
         </div>
         <p class="field-hint">As tentativas extras valem para erros temporários (timeout, HTTP 429, 500, 502, 503). A espera automática quando o resolve já está em execução na API é independente desta configuração.</p>
