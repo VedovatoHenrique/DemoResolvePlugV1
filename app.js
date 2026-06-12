@@ -12,13 +12,20 @@
 ---------------------------------------------------------- */
 const API_BASE_URL   = "https://api.plugnotas.com.br/nfse/resolve";
 const CONCURRENCY    = 5;          // requisições simultâneas
-const MAX_RETRIES    = 3;          // tentativas extras em erro temporário
 const RETRY_STATUSES = [429, 500, 502, 503];
-const TIMEOUT_MS     = 15000;      // 15s por requisição
+const TIMEOUT_MS     = 120000;     // 120s: o resolve é síncrono e pode demorar na API
+const DEFAULT_RETRIES  = 3;        // padrão de tentativas (configurável na interface)
+const DEFAULT_INTERVAL = 1000;     // padrão de intervalo entre tentativas, em ms
+// Quando a API responde "resolve já está sendo executado", aguarda e verifica de novo
+const RESOLVE_WAIT_MS   = 10000;   // intervalo entre verificações (10s)
+const RESOLVE_MAX_POLLS = 12;      // até ~2 minutos de espera adicional
+const RESOLVE_IN_PROGRESS = /sendo executad/i; // detecta a mensagem, com ou sem acentos
 const STORAGE_KEYS   = {
   apiKey: "nfse-ident:apiKey",
-  ids:    "nfse-ident:ids",
-  mode:   "nfse-ident:mode"
+  ids:      "nfse-ident:ids",
+  mode:     "nfse-ident:mode",
+  retries:  "nfse-ident:retries",
+  interval: "nfse-ident:interval"
 };
 
 /* ----------------------------------------------------------
@@ -57,6 +64,8 @@ const els = {
   panelIndividual: $("panelIndividual"),
   identUnicaInput: $("identUnicaInput"),
   individualTableBody: $("individualTableBody"),
+  retrySelect: $("retrySelect"),
+  retryIntervalInput: $("retryIntervalInput"),
   runBtn: $("runBtn"),
   cancelBtn: $("cancelBtn"),
   progressFill: $("progressFill"),
@@ -323,6 +332,34 @@ function initModes() {
 }
 
 /* ============================================================
+   CONFIGURAÇÃO DE TENTATIVAS (definida pelo usuário)
+   ============================================================ */
+
+/** Lê e valida a configuração de tentativas e intervalo da interface. */
+function getRetryConfig() {
+  const maxRetries = [1, 3, 5].includes(Number(els.retrySelect.value))
+    ? Number(els.retrySelect.value)
+    : DEFAULT_RETRIES;
+  let retryInterval = parseInt(els.retryIntervalInput.value, 10);
+  if (!Number.isFinite(retryInterval) || retryInterval < 0) retryInterval = DEFAULT_INTERVAL;
+  return { maxRetries, retryInterval };
+}
+
+/** Restaura a última configuração e persiste alterações. */
+function initRetryConfig() {
+  const savedRetries = localStorage.getItem(STORAGE_KEYS.retries);
+  if (["1", "3", "5"].includes(savedRetries)) els.retrySelect.value = savedRetries;
+
+  const savedInterval = parseInt(localStorage.getItem(STORAGE_KEYS.interval), 10);
+  if (Number.isFinite(savedInterval) && savedInterval >= 0) els.retryIntervalInput.value = savedInterval;
+
+  els.retrySelect.addEventListener("change", () =>
+    localStorage.setItem(STORAGE_KEYS.retries, els.retrySelect.value));
+  els.retryIntervalInput.addEventListener("input", () =>
+    localStorage.setItem(STORAGE_KEYS.interval, els.retryIntervalInput.value));
+}
+
+/* ============================================================
    COMUNICAÇÃO COM A API
    ============================================================ */
 
@@ -332,17 +369,23 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /**
  * Executa o POST de atualização para um ID, com timeout, retry
  * automático em erros temporários e suporte a cancelamento.
+ * Quando a API informa que o resolve já está em execução para o
+ * documento, aguarda e verifica novamente (o resolve é síncrono
+ * e pode levar alguns minutos para concluir no PlugNotas).
  * Retorna um objeto de resultado pronto para a tabela e o CSV.
  */
-async function updateNota(id, identificacao, apiKey) {
+async function updateNota(id, identificacao, apiKey, maxRetries, retryInterval) {
   const url = `${API_BASE_URL}/${encodeURIComponent(id)}`;
   const started = performance.now();
   let lastError = null;
+  let attempt = 0;  // tentativas consumidas por erros temporários (timeout/429/5xx)
+  let polls = 0;    // verificações enquanto o resolve está em andamento na API
 
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+  while (true) {
     if (state.cancelled) {
       return buildResult(id, identificacao, null, "cancelado", "Processamento cancelado pelo usuário", started);
     }
+    attempt++;
 
     // AbortController combina timeout e cancelamento manual
     const controller = new AbortController();
@@ -350,7 +393,7 @@ async function updateNota(id, identificacao, apiKey) {
     const timeoutId = setTimeout(() => controller.abort("timeout"), TIMEOUT_MS);
 
     try {
-      log(`POST ${url} (tentativa ${attempt}/${MAX_RETRIES})`);
+      log(`POST ${url} (tentativa ${attempt}/${maxRetries})`);
       // identificacaoNota é opcional: quando vazia, envia body sem o campo
       const body = identificacao ? { identificacaoNota: identificacao } : {};
       const response = await fetch(url, {
@@ -377,11 +420,24 @@ async function updateNota(id, identificacao, apiKey) {
         return buildResult(id, identificacao, response.status, "sucesso", apiMessage || "Atualizado com sucesso", started);
       }
 
-      // Erro temporário: agenda nova tentativa com backoff exponencial
-      if (RETRY_STATUSES.includes(response.status) && attempt < MAX_RETRIES) {
-        const wait = 1000 * 2 ** (attempt - 1); // 1s, 2s, 4s...
-        log(`ID ${id} -> HTTP ${response.status}. Nova tentativa em ${wait / 1000}s.`, "warn");
-        await sleep(wait);
+      // Resolve já em execução na API: não é erro, é "aguarde e verifique de novo"
+      if (RESOLVE_IN_PROGRESS.test(apiMessage)) {
+        if (polls < RESOLVE_MAX_POLLS) {
+          polls++;
+          attempt--; // não consome tentativa de erro temporário
+          log(`ID ${id} -> resolve em andamento na API. Nova verificação em ${RESOLVE_WAIT_MS / 1000}s (${polls}/${RESOLVE_MAX_POLLS}).`, "warn");
+          await sleep(RESOLVE_WAIT_MS);
+          continue;
+        }
+        log(`ID ${id} -> resolve ainda em processamento na API após ${Math.round(RESOLVE_MAX_POLLS * RESOLVE_WAIT_MS / 1000)}s de espera.`, "warn");
+        return buildResult(id, identificacao, response.status, "processando-api",
+          "Resolve ainda em processamento na API. Consulte a nota novamente em alguns minutos.", started);
+      }
+
+      // Erro temporário: agenda nova tentativa com o intervalo configurado
+      if (RETRY_STATUSES.includes(response.status) && attempt < maxRetries) {
+        log(`ID ${id} -> HTTP ${response.status}. Nova tentativa em ${retryInterval}ms.`, "warn");
+        await sleep(retryInterval);
         continue;
       }
 
@@ -396,24 +452,22 @@ async function updateNota(id, identificacao, apiKey) {
         return buildResult(id, identificacao, null, "cancelado", "Processamento cancelado pelo usuário", started);
       }
 
-      lastError = isTimeout ? "Timeout (15s) excedido" : (err?.message || "Falha de rede");
+      lastError = isTimeout ? `Timeout (${TIMEOUT_MS / 1000}s) excedido` : (err?.message || "Falha de rede");
 
       // Timeout e falhas de rede também entram no retry
-      if (attempt < MAX_RETRIES) {
-        const wait = 1000 * 2 ** (attempt - 1);
-        log(`ID ${id} -> ${lastError}. Nova tentativa em ${wait / 1000}s.`, "warn");
-        await sleep(wait);
+      if (attempt < maxRetries) {
+        log(`ID ${id} -> ${lastError}. Nova tentativa em ${retryInterval}ms.`, "warn");
+        await sleep(retryInterval);
         continue;
       }
 
       log(`ID ${id} -> ${lastError} (tentativas esgotadas)`, "error");
+      return buildResult(id, identificacao, null, "erro", lastError || "Falha desconhecida", started);
     } finally {
       clearTimeout(timeoutId);
       state.abortControllers.delete(controller);
     }
   }
-
-  return buildResult(id, identificacao, null, "erro", lastError || "Falha desconhecida", started);
 }
 
 /** Procura a mensagem mais relevante no JSON de resposta da API. */
@@ -444,7 +498,7 @@ function buildResult(id, identificacao, status, outcome, message, started) {
    ============================================================ */
 
 /** Executa a fila de IDs com no máximo CONCURRENCY chamadas simultâneas. */
-async function processQueue(items, apiKey) {
+async function processQueue(items, apiKey, maxRetries, retryInterval) {
   let index = 0;
 
   // Cada worker consome itens da fila até ela esgotar ou o usuário cancelar
@@ -453,7 +507,7 @@ async function processQueue(items, apiKey) {
       const rowIndex = index++;
       const current = items[rowIndex];
       setRowStatus(rowIndex, "processando");
-      const result = await updateNota(current.id, current.identificacao, apiKey);
+      const result = await updateNota(current.id, current.identificacao, apiKey, maxRetries, retryInterval);
       registerResult(result, rowIndex);
     }
   };
@@ -508,6 +562,7 @@ function registerResult(result, rowIndex) {
     row.querySelector(".cell-time").textContent = `${result.timeMs}ms`;
     const badge =
       result.outcome === "sucesso" ? `<span class="badge badge-success">✓ Sucesso</span>` :
+      result.outcome === "processando-api" ? `<span class="badge badge-warning">⏳ Em processamento na API</span>` :
       result.outcome === "cancelado" ? `<span class="badge badge-neutral">Cancelado</span>` :
       `<span class="badge badge-error">✕ Erro</span>`;
     row.querySelector(".cell-outcome").innerHTML = badge;
@@ -580,6 +635,8 @@ function setRunningUI(running) {
   els.formatIdsBtn.disabled = running;
   els.tabUnica.disabled = running;
   els.tabIndividual.disabled = running;
+  els.retrySelect.disabled = running;
+  els.retryIntervalInput.disabled = running;
   els.exportCsvBtn.disabled = running || state.results.length === 0;
   els.progressFill.classList.toggle("running", running);
 }
@@ -610,9 +667,10 @@ async function runUpdate() {
   buildResultsTable(items);
   updateStatsUI();
   setRunningUI(true);
-  log(`Execução iniciada: ${items.length} nota(s), concorrência ${CONCURRENCY}.`);
+  const { maxRetries, retryInterval } = getRetryConfig();
+  log(`Execução iniciada: ${items.length} nota(s), concorrência ${CONCURRENCY}, até ${maxRetries} tentativa(s) por nota com intervalo de ${retryInterval}ms.`);
 
-  await processQueue(items, apiKey);
+  await processQueue(items, apiKey, maxRetries, retryInterval);
 
   finishRun();
 }
@@ -705,6 +763,7 @@ function init() {
   initApiKey();
   initIds();
   initModes();
+  initRetryConfig();
 
   els.runBtn.addEventListener("click", runUpdate);
   els.cancelBtn.addEventListener("click", cancelRun);

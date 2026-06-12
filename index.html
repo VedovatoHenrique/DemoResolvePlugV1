@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Atualização de Identificação NFSe — PlugNotas</title>
+  <title>Consulta e Sincronização de Notas | Rota Resolve — PlugNotas</title>
   <!-- Favicon inline (chevron) para evitar 404 de /favicon.ico -->
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M14 6 L40 32 L14 58 L24 58 L50 32 L24 6 Z' fill='%232d2a8c'/%3E%3Cpath d='M30 12 L50 32 L30 52 L37 52 L57 32 L37 12 Z' fill='%234db8ec'/%3E%3C/svg%3E" />
   <!-- Tipografia geométrica arredondada, alinhada à identidade PlugNotas -->
@@ -24,11 +24,15 @@
         <path d="M22 26 a8 8 0 0 1 8 8 a8 8 0 0 1 -8 -8 Z" fill="var(--logo-light)"/>
       </svg>
       <div class="header-titles">
-        <h1>Atualização de Identificação NFSe</h1>
-        <p>Ferramenta interna de suporte — PlugNotas API</p>
+        <h1>Consulta e Sincronização de Notas | Rota Resolve</h1>
+        <p>Ferramenta interna de consultoria técnica — PlugNotas API</p>
       </div>
     </div>
     <div class="header-actions">
+      <a href="documentacao.pdf" target="_blank" rel="noopener" class="btn btn-header" title="Abrir o manual de uso da ferramenta">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Documentação
+      </a>
       <button id="themeToggle" class="theme-toggle" type="button" title="Alternar tema claro/escuro" aria-label="Alternar tema">
         <span class="theme-toggle-thumb"></span>
       </button>
@@ -130,6 +134,22 @@
         <h2>Execução</h2>
       </div>
       <div class="card-body">
+        <div class="config-row">
+          <div class="config-field">
+            <label class="field-label" for="retrySelect">Tentativas por nota</label>
+            <select id="retrySelect" class="text-input select-input">
+              <option value="1">1 tentativa</option>
+              <option value="3" selected>3 tentativas</option>
+              <option value="5">5 tentativas</option>
+            </select>
+          </div>
+          <div class="config-field">
+            <label class="field-label" for="retryIntervalInput">Intervalo entre tentativas (ms)</label>
+            <input type="number" id="retryIntervalInput" class="text-input" min="0" step="100" value="1000" />
+          </div>
+        </div>
+        <p class="field-hint">As tentativas extras valem para erros temporários (timeout, HTTP 429, 500, 502, 503). A espera automática quando o resolve já está em execução na API é independente desta configuração.</p>
+
         <div class="exec-buttons">
           <button type="button" id="runBtn" class="btn btn-primary">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -220,7 +240,7 @@
 
   </main>
 
-  <footer class="app-footer">Ferramenta interna — equipe de suporte PlugNotas · TecnoSpeed</footer>
+  <footer class="app-footer">Ferramenta interna — consultoria técnica PlugNotas · TecnoSpeed</footer>
 
   <!-- Container das mensagens toast -->
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>

@@ -135,6 +135,24 @@ body {
 .header-titles h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: 0.2px; }
 .header-titles p { font-size: 0.82rem; opacity: 0.82; font-weight: 500; }
 
+.header-actions { display: flex; align-items: center; gap: 14px; }
+
+/* Botão de documentação no cabeçalho */
+.btn-header {
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  color: #fff;
+  text-decoration: none;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+}
+.btn-header:hover { background: rgba(255, 255, 255, 0.26); border-color: #fff; }
+
+/* Configuração de tentativas (card Execução) */
+.config-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.config-field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 200px; }
+.select-input { cursor: pointer; appearance: auto; }
+
 /* Toggle de tema, no estilo do switch do PlugNotas */
 .theme-toggle {
   width: 52px;
